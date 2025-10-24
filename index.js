@@ -6,6 +6,26 @@ const APPTESTERS_API_URL = 'https://raw.githubusercontent.com/apptesters-org/App
 
 const bot = new TelegramBot(BOT_TOKEN, {polling: true})
 
+// Handle polling errors gracefully
+bot.on('polling_error', (error) => {
+  console.error('Polling error:', error.message)
+  if (error.code === 'ETELEGRAM' && error.message.includes('409 Conflict')) {
+    console.log('Another bot instance is running. Stopping this instance...')
+    process.exit(0)
+  }
+})
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error.message)
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  process.exit(1)
+})
+
 // Cache for API data
 let appsData = null
 let lastFetchTime = 0
@@ -150,4 +170,18 @@ Send me a bundle identifier to get app information!
   }
 });
 
-console.log('🤖 AppTesters Bot is running...');
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down bot gracefully...')
+  bot.stopPolling()
+  process.exit(0)
+})
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Shutting down bot gracefully...')
+  bot.stopPolling()
+  process.exit(0)
+})
+
+console.log('🤖 AppTesters Bot is running...')
+console.log('Press Ctrl+C to stop the bot')
