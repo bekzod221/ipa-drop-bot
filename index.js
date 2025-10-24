@@ -3,6 +3,7 @@ const axios = require('axios')
 
 const BOT_TOKEN = '8067078873:AAFuYKzf9CiRR3bpV__dwH9hxr-aoEKwgAU'
 const APPTESTERS_API_URL = 'https://raw.githubusercontent.com/apptesters-org/AppTesters_Repo/refs/heads/main/apps.json'
+const CHANNEL_ID = '@edgyhacksipa'
 
 const bot = new TelegramBot(BOT_TOKEN, {polling: true})
 
@@ -98,14 +99,125 @@ function formatAppResponse(app) {
   const response = `📱 *${app.name}* 🆕
 
 🔩 *Hack Features* 🔩
-${featuresList}
-
-📥 *Download*
-[Download IPA](https://ipa-drop.vercel.app/app/${app.bundleID})
-
-📄 *Buy Your Own Certificate* [Tap Here](https://ipa-drop.vercel.app/certificate)`
+${featuresList}`
 
   return response
+}
+
+// Function to create inline keyboard for app
+function createAppKeyboard(app) {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: '📥 Download IPA',
+            url: `https://ipa-drop.vercel.app/app/${app.bundleID}`
+          }
+        ],
+        [
+          {
+            text: '📄 Buy Certificate',
+            url: 'https://ipa-drop.vercel.app/certificate'
+          }
+        ]
+      ]
+    }
+  }
+}
+
+// Function to send message to both user and channel
+async function sendToBoth(chatId, message, options = {}) {
+  try {
+    // Send to user
+    await bot.sendMessage(chatId, message, options)
+    
+    // Send to channel
+    await bot.sendMessage(CHANNEL_ID, message, options)
+    console.log(`Message sent to user ${chatId} and channel ${CHANNEL_ID}`)
+  } catch (error) {
+    console.error('Error sending message:', error.message)
+    // If channel send fails, still send to user
+    try {
+      await bot.sendMessage(chatId, message, options)
+    } catch (userError) {
+      console.error('Error sending to user:', userError.message)
+    }
+  }
+}
+
+// Function to send photo to both user and channel
+async function sendPhotoToBoth(chatId, photo, options = {}) {
+  try {
+    // Send to user
+    await bot.sendPhoto(chatId, photo, options)
+    
+    // Send to channel
+    await bot.sendPhoto(CHANNEL_ID, photo, options)
+    console.log(`Photo sent to user ${chatId} and channel ${CHANNEL_ID}`)
+  } catch (error) {
+    console.error('Error sending photo:', error.message)
+    // If channel send fails, still send to user
+    try {
+      await bot.sendPhoto(chatId, photo, options)
+    } catch (userError) {
+      console.error('Error sending photo to user:', userError.message)
+      // Fallback to text message
+      const fallbackMessage = options.caption || 'App information'
+      await sendToBoth(chatId, fallbackMessage, { parse_mode: 'Markdown' })
+    }
+  }
+}
+
+// Function to send app info with buttons to both user and channel
+async function sendAppInfoToBoth(chatId, app) {
+  const message = formatAppResponse(app)
+  const keyboard = createAppKeyboard(app)
+  const options = {
+    parse_mode: 'Markdown',
+    ...keyboard
+  }
+
+  try {
+    // Send to user
+    await bot.sendMessage(chatId, message, options)
+    
+    // Send to channel
+    await bot.sendMessage(CHANNEL_ID, message, options)
+    console.log(`App info with buttons sent to user ${chatId} and channel ${CHANNEL_ID}`)
+  } catch (error) {
+    console.error('Error sending app info:', error.message)
+    // If channel send fails, still send to user
+    try {
+      await bot.sendMessage(chatId, message, options)
+    } catch (userError) {
+      console.error('Error sending to user:', userError.message)
+    }
+  }
+}
+
+// Function to send app photo with buttons to both user and channel
+async function sendAppPhotoToBoth(chatId, app) {
+  const message = formatAppResponse(app)
+  const keyboard = createAppKeyboard(app)
+  const options = {
+    caption: message,
+    parse_mode: 'Markdown',
+    ...keyboard
+  }
+
+  try {
+    // Send to user
+    await bot.sendPhoto(chatId, app.iconURL, options)
+    
+    // Send to channel
+    await bot.sendPhoto(CHANNEL_ID, app.iconURL, options)
+    console.log(`App photo with buttons sent to user ${chatId} and channel ${CHANNEL_ID}`)
+  } catch (error) {
+    console.error('Error sending app photo:', error.message)
+    // If photo fails, send text with buttons
+    await sendAppInfoToBoth(chatId, app)
+  }
 }
 
 bot.on('message', async (msg) => {
@@ -127,20 +239,11 @@ bot.on('message', async (msg) => {
       const app = findAppByBundleId(text)
       
       if (app) {
-        // Send app icon first
+        // Send app with buttons
         if (app.iconURL) {
-          try {
-            await bot.sendPhoto(chatId, app.iconURL, {
-              caption: formatAppResponse(app),
-              parse_mode: 'Markdown'
-            })
-          } catch (error) {
-            // If photo fails, send text with icon URL
-            const responseWithIcon = `[${app.iconURL}](${app.iconURL})\n\n${formatAppResponse(app)}`
-            await bot.sendMessage(chatId, responseWithIcon, { parse_mode: 'Markdown' })
-          }
+          await sendAppPhotoToBoth(chatId, app)
         } else {
-          await bot.sendMessage(chatId, formatAppResponse(app), { parse_mode: 'Markdown' })
+          await sendAppInfoToBoth(chatId, app)
         }
       } else {
         await bot.sendMessage(chatId, '❌ App not found. Please check the bundle identifier and try again.\n\nExample: `com.zhiliaoapp.musically`')
